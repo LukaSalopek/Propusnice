@@ -1,10 +1,14 @@
 {
   "name": "propusnice",
+  "type": "module",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npm run clean && tsc && npm run copy-files",
+    "clean": "shx rm -rf dist",
+    "copy-files": "shx cp -r src/views dist",
+    "start": "node dist/app.js"
   },
   "keywords": [],
   "author": "",

@@ -1,0 +1,11 @@
+doctype html
+html(lang="hr")
+  head
+    meta(charset="utf-8")
+    title Propusnica
+  body
+    h1 Propusnica
+    p Status: #{pass.status}
+    p Ime i prezime: #{pass.name}
+    p Dokument: #{pass.document}
+    p Izdana: #{pass.issued_at.toLocaleString('hr-HR', { timeZone: 'Europe/Zagreb' })}
