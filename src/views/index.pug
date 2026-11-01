@@ -7,3 +7,13 @@ html(lang="hr")
     h1 Propusnice
     p Ukupno propusnica: #{total}
     p Aktivnih propusnica: #{active}
+
+    if loggedIn
+      p Prijavljeni ste kao #{username}
+      p
+        a(href="/admin/passes") Pregled propusnica
+      p
+        a(href="/logout") Odjava
+    else
+      p
+        a(href="/login") Prijava

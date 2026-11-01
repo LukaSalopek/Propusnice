@@ -1,0 +1,39 @@
+doctype html
+html(lang="hr")
+  head
+    meta(charset="utf-8")
+    title Pregled propusnica
+  body
+    h1 Pregled propusnica
+    p
+      a(href="/") Početna
+
+    table(border="1" cellpadding="6")
+      thead
+        tr
+          th Ime i prezime
+          th Dokument
+          th Izdana
+          th Status
+          th
+          th
+          th
+      tbody
+        each p in passes
+          tr
+            td= p.name
+            td= p.document
+            td= p.issued_at.toLocaleString('hr-HR', { timeZone: 'Europe/Zagreb' })
+            td= p.status
+            td
+              a(href=`/info/${p.id}`) Prikaži
+            td
+              if p.status === 'ACTIVE'
+                form(method="post" action=`/admin/passes/${p.id}/cancel`)
+                  button(type="submit") Poništi
+            td
+              form(method="post" action=`/admin/passes/${p.id}/delete` onsubmit="return confirm('Obrisati propusnicu?')")
+                button(type="submit") Obriši
+        else
+          tr
+            td(colspan="7") Nema propusnica.
