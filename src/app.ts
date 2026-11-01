@@ -69,14 +69,14 @@ app.get('/admin/passes', requiresAuth(), async (req, res) => {
 
 app.post('/admin/passes/:id/cancel', requiresAuth(), async (req, res) => {
   const { id } = req.params;
-  if (!UUID_RE.test(id)) return res.sendStatus(404);
+   if (typeof id !== 'string' || !UUID_RE.test(id)) return res.sendStatus(404);
   await pool.query("UPDATE passes SET status = 'CANCELLED' WHERE id = $1", [id]);
   res.redirect('/admin/passes');
 });
 
 app.post('/admin/passes/:id/delete', requiresAuth(), async (req, res) => {
   const { id } = req.params;
-  if (!UUID_RE.test(id)) return res.sendStatus(404);
+   if (typeof id !== 'string' || !UUID_RE.test(id)) return res.sendStatus(404);
   await pool.query('DELETE FROM passes WHERE id = $1', [id]);
   res.redirect('/admin/passes');
 });
