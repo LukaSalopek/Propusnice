@@ -1,7 +1,9 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { type ErrorRequestHandler } from 'express';
 import path from 'node:path';
 import oidc from 'express-openid-connect';
+import { auth as jwtAuth, requiredScopes } from 'express-oauth2-jwt-bearer';
+import QRCode from 'qrcode';
 import { pool } from './db.ts';
 
 const { auth, requiresAuth } = oidc;
@@ -19,7 +21,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 app.use(auth({
   authRequired: false,
   idpLogout: true,
-  secret: process.env.SECRET,
+  secret: process.env.SESSION_SECRET,
   baseURL,
   clientID: process.env.CLIENT_ID,
   clientSecret: process.env.CLIENT_SECRET,
@@ -29,6 +31,11 @@ app.use(auth({
     scope: 'openid profile email',
   },
 }));
+
+const checkJwt = jwtAuth({
+  audience: process.env.API_AUDIENCE,
+  issuerBaseURL: process.env.AUTH0_DOMAIN,
+});
 
 app.get('/', async (req, res) => {
   const { rows } = await pool.query(`
@@ -59,7 +66,6 @@ app.get('/info/:id', async (req, res) => {
   res.render('info', { pass: rows[0] });
 });
 
-
 app.get('/admin/passes', requiresAuth(), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT id, name, document, issued_at, status FROM passes ORDER BY issued_at DESC'
@@ -69,17 +75,65 @@ app.get('/admin/passes', requiresAuth(), async (req, res) => {
 
 app.post('/admin/passes/:id/cancel', requiresAuth(), async (req, res) => {
   const { id } = req.params;
-   if (typeof id !== 'string' || !UUID_RE.test(id)) return res.sendStatus(404);
+  if (typeof id !== 'string' || !UUID_RE.test(id)) return res.sendStatus(404);
   await pool.query("UPDATE passes SET status = 'CANCELLED' WHERE id = $1", [id]);
   res.redirect('/admin/passes');
 });
 
 app.post('/admin/passes/:id/delete', requiresAuth(), async (req, res) => {
   const { id } = req.params;
-   if (typeof id !== 'string' || !UUID_RE.test(id)) return res.sendStatus(404);
+  if (typeof id !== 'string' || !UUID_RE.test(id)) return res.sendStatus(404);
   await pool.query('DELETE FROM passes WHERE id = $1', [id]);
   res.redirect('/admin/passes');
 });
+
+app.get('/passes/:id', checkJwt, requiredScopes('read:passes'), async (req, res) => {
+  const { id } = req.params;
+  if (typeof id !== 'string' || !UUID_RE.test(id)) return res.sendStatus(404);
+
+  const { rows } = await pool.query(
+    'SELECT id, name, document, issued_at, status FROM passes WHERE id = $1',
+    [id]
+  );
+  if (rows.length === 0) return res.sendStatus(404);
+
+  const p = rows[0];
+  res.json({
+    id: p.id,
+    name: p.name,
+    document: p.document,
+    issuedAt: p.issued_at.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    status: p.status,
+  });
+});
+
+app.post('/passes', checkJwt, requiredScopes('create:passes'), express.json(), async (req, res) => {
+  const { name, document } = req.body ?? {};
+  if (typeof name !== 'string' || name.trim() === '' ||
+      typeof document !== 'string' || document.trim() === '') {
+    return res.status(400).json({ error: 'name i document su obavezni' });
+  }
+
+  const { rows } = await pool.query(
+    'INSERT INTO passes (name, document) VALUES ($1, $2) RETURNING id',
+    [name.trim(), document.trim()]
+  );
+  const id: string = rows[0].id;
+
+  const publicUrl = `${baseURL}/info/${id}`; 
+  const apiUrl = `${baseURL}/passes/${id}`; 
+
+  const png = await QRCode.toBuffer(publicUrl);
+  res.status(201).location(apiUrl).type('image/png').send(png);
+});
+
+const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
+  const status = err.status ?? err.statusCode ?? 500;
+  if (status >= 500) console.error(err);
+  if (err.headers) res.set(err.headers);
+  res.status(status).json({ error: status >= 500 ? 'Internal Server Error' : err.message });
+};
+app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`Aplikacija radi na ${baseURL}`);
